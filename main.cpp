@@ -2,10 +2,9 @@
 #include <vector>
 #include <fstream>
 #include <string>
-#include <iomanip>
 using namespace std;
 
-// ========================= STRUCTS ========================= //
+// ========================= Basic Structs ========================= //
 
 struct Subject {
     string code;
@@ -69,7 +68,26 @@ struct Node {
     }
 };
 
-// ========================= HASH TABLE ========================= //
+// ========================= Grade-Points ========================= //
+
+double getGradePoints(string grade) {
+    if (grade == "A")  return 10.0;
+    if (grade == "A-") return 9.0;
+    if (grade == "B")  return 8.0;
+    if (grade == "B-") return 7.0;
+    if (grade == "C")  return 6.0;
+    if (grade == "C-") return 5.0;
+    if (grade == "D")  return 4.0;
+    if (grade == "F")  return -1.0;
+    if (grade == "W")  return -1.0;
+    return -1.0;
+}
+
+bool isExcluded(string grade) {
+    return grade == "F" || grade == "W";
+}
+
+// ========================= Hash-Table ========================= //
 
 const int TABLE_SIZE = 97;
 
@@ -199,3 +217,4 @@ struct HashTable {
         delete[] table;
     }
 };
+
