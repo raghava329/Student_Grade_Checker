@@ -5,46 +5,53 @@
 #include <iomanip>
 using namespace std;
 
-// ========================= basic structs ========================= //
+// ========================= STRUCTS ========================= //
 
 struct Subject {
     string name;
     string grade;
+    int semester;
 
-    Subject(string n) {
+    Subject(string n, int sem) {
         name = n;
         grade = "N";
+        semester = sem;
     }
 
-    Subject(string n, string g) {
+    Subject(string n, string g, int sem) {
         name = n;
         grade = g;
+        semester = sem;
     }
 };
 
 struct Student {
     string id;
     string name;
+    string department;
+    int joining_year;
+    int current_semester;
     vector<Subject> subjects;
-    double gpa;
+    double cgpa;
+    vector<double> sgpa;
+    vector<int> dept_rank;
 
     Student() {
         id = "";
         name = "";
-        gpa = 0.0;
+        department = "";
+        joining_year = 0;
+        current_semester = 1;
+        cgpa = 0.0;
     }
 
-    Student(string i, string n) {
+    Student(string i, string n, string dept, int year) {
         id = i;
         name = n;
-        gpa = 0.0;
-    }
-
-    Student(string i, string n, vector<Subject> s) {
-        id = i;
-        name = n;
-        subjects = s;
-        gpa = 0.0;
+        department = dept;
+        joining_year = year;
+        current_semester = 1;
+        cgpa = 0.0;
     }
 };
 
