@@ -8,18 +8,18 @@ using namespace std;
 // ========================= STRUCTS ========================= //
 
 struct Subject {
-    string name;
+    string code;
     string grade;
     int semester;
 
-    Subject(string n, int sem) {
-        name = n;
+    Subject(string c, int sem) {
+        code = c;
         grade = "N";
         semester = sem;
     }
 
-    Subject(string n, string g, int sem) {
-        name = n;
+    Subject(string c, string g, int sem) {
+        code = c;
         grade = g;
         semester = sem;
     }
