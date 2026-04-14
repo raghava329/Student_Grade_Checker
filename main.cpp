@@ -1,8 +1,71 @@
-#include <iostream>
-#include <vector>
-#include <fstream>
-#include <string>
+#include <bits/stdc++.h>
 using namespace std;
+// ========================= String Utilities ========================= //
+
+
+string str_trim(const string& s) {
+    size_t start = s.find_first_not_of(" \t\r\n");
+    if (start == string::npos) return "";
+    size_t end = s.find_last_not_of(" \t\r\n");
+    return s.substr(start, end - start + 1);
+}
+
+string str_lower(const string& s) {
+    string r = s;
+    for (int i = 0; i < (int)r.size(); i++)
+        if (r[i] >= 'A' && r[i] <= 'Z') r[i] += 32;
+    return r;
+}
+
+bool str_eq_ci(const string& a, const string& b) {
+    return str_lower(a) == str_lower(b);
+}
+
+bool str_contains_ci(const string& hay, const string& needle) {
+    return str_lower(hay).find(str_lower(needle)) != string::npos;
+}
+
+int safe_stoi(const string& s) {
+    string t = str_trim(s);
+    if (t.empty()) return -1;
+    try { return stoi(t); }
+    catch (...) { return -1; }
+}
+
+float safe_stof(const string& s) {
+    string t = str_trim(s);
+    if (t.empty()) return 0.0f;
+    try { return stof(t); }
+    catch (...) { return 0.0f; }
+}
+
+string float_to_str(float v, int dec = 2) {
+    ostringstream oss;
+    oss << fixed << setprecision(dec) << v;
+    return oss.str();
+}
+
+vector<string> split_csv(const string& line) {
+    vector<string> parts;
+    string cur;
+    bool in_quotes = false;
+    for (int i = 0; i < (int)line.size(); i++) {
+        if (line[i] == '"') {
+            in_quotes = !in_quotes;
+        } else if (line[i] == ',' && !in_quotes) {
+            parts.push_back(str_trim(cur));
+            cur.clear();
+        } else {
+            cur += line[i];
+        }
+    }
+    parts.push_back(str_trim(cur));
+    return parts;
+}
+
+
+
+
 
 // ========================= Basic Structs ========================= //
 
