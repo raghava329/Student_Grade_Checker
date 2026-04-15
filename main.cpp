@@ -1,4 +1,5 @@
 #include <bits/stdc++.h>
+#include <httplib.h>
 using namespace std;
 
 // ================================================================
@@ -296,4 +297,156 @@ string make_password(const string& name, const string& roll) {
         if (nm[i] != ' ') pfx += nm[i];
     string sfx = ((int)roll.size() >= 4) ? roll.substr(roll.size() - 4) : roll;
     return pfx + sfx;
+}
+// ================================================================
+// SECTION 12: CSV IMPORT LOGIC (reusable for API)
+// ================================================================
+
+struct ImportResult {
+    int imported, skipped;
+    string errors;
+};
+
+ImportResult do_import_students(const string& csv_content) {
+    ImportResult res = {0, 0, ""};
+    istringstream stream(csv_content);
+    string line;
+    getline(stream, line); // header
+    if (!str_contains_ci(line, "rollno") && !str_contains_ci(line, "roll_no")) {
+        res.errors = "Header must contain RollNo";
+        return res;
+    }
+    int lineNum = 1;
+    while (getline(stream, line)) {
+        lineNum++;
+        line = str_trim(line);
+        if (line.empty()) continue;
+        vector<string> p = split_csv(line);
+        if ((int)p.size() < 5) { res.skipped++; continue; }
+        if (p[0].empty() || p[1].empty() || p[2].empty()) { res.skipped++; continue; }
+        int sem = safe_stoi(p[3]), yr = safe_stoi(p[4]);
+        if (sem < 1 || yr < 2000) { res.skipped++; continue; }
+        Student s;
+        s.rollNo = p[0]; s.name = p[1]; s.dept = p[2];
+        s.semester = sem; s.year = yr;
+        studentMap.insert(p[0], s);
+        res.imported++;
+    }
+    save_students();
+    return res;
+}
+
+ImportResult do_import_subjects(const string& csv_content) {
+    ImportResult res = {0, 0, ""};
+    istringstream stream(csv_content);
+    string line;
+    getline(stream, line); // header
+    subjectMap.clear();
+    int lineNum = 1;
+    while (getline(stream, line)) {
+        lineNum++;
+        line = str_trim(line);
+        if (line.empty()) continue;
+        vector<string> p = split_csv(line);
+        if ((int)p.size() < 3) { res.skipped++; continue; }
+        float cred = safe_stof(p[2]);
+        if (p[0].empty() || p[1].empty() || cred <= 0) { res.skipped++; continue; }
+        Subject s;
+        s.code = p[0]; s.name = p[1]; s.credits = cred;
+        subjectMap.insert(p[0], s);
+        res.imported++;
+    }
+    save_subjects();
+    return res;
+}
+
+ImportResult do_import_enrollments(const string& csv_content) {
+    ImportResult res = {0, 0, ""};
+    if (studentMap.size() == 0) { res.errors = "No students loaded"; return res; }
+    if (subjectMap.size() == 0) { res.errors = "No subjects loaded"; return res; }
+    istringstream stream(csv_content);
+    string line;
+    getline(stream, line);
+    int lineNum = 1;
+    while (getline(stream, line)) {
+        lineNum++;
+        line = str_trim(line);
+        if (line.empty()) continue;
+        vector<string> p = split_csv(line);
+        if ((int)p.size() < 4) { res.skipped++; continue; }
+        if (!studentMap.find(p[0])) { res.skipped++; continue; }
+        if (!subjectMap.find(p[1])) { res.skipped++; continue; }
+        int sem = safe_stoi(p[2]), yr = safe_stoi(p[3]);
+        if (find_enrollment(p[0], p[1], sem, yr)) { res.skipped++; continue; }
+        Enrollment e;
+        e.rollNo = p[0]; e.subCode = p[1]; e.semester = sem; e.year = yr;
+        enrollments.push_back(e);
+        res.imported++;
+    }
+    save_enrollments();
+    return res;
+}
+
+ImportResult do_import_grades(const string& csv_content) {
+    ImportResult res = {0, 0, ""};
+    if (enrollments.empty()) { res.errors = "No enrollments loaded"; return res; }
+    istringstream stream(csv_content);
+    string line;
+    getline(stream, line);
+
+    vector<GradeEntry> incoming;
+    int lineNum = 1;
+    while (getline(stream, line)) {
+        lineNum++;
+        line = str_trim(line);
+        if (line.empty()) continue;
+        vector<string> p = split_csv(line);
+        if ((int)p.size() < 5) { res.skipped++; continue; }
+        string roll = p[0], sub = p[1], grade = p[2];
+        int sem = safe_stoi(p[3]), yr = safe_stoi(p[4]);
+        if (!studentMap.find(roll)) { res.skipped++; continue; }
+        if (!is_valid_grade(grade)) { res.skipped++; continue; }
+        if (!find_enrollment(roll, sub, sem, yr)) { res.skipped++; continue; }
+        GradeEntry ge;
+        ge.rollNo = roll; ge.subCode = sub; ge.grade = grade;
+        ge.semester = sem; ge.year = yr;
+        incoming.push_back(ge);
+    }
+
+    // Collect batch (sem,yr) combos
+    vector<int> isems, iyrs;
+    for (int i = 0; i < (int)incoming.size(); i++) {
+        int s = incoming[i].semester, y = incoming[i].year;
+        bool found = false;
+        for (int j = 0; j < (int)isems.size(); j++)
+            if (isems[j] == s && iyrs[j] == y) { found = true; break; }
+        if (!found) { isems.push_back(s); iyrs.push_back(y); }
+    }
+
+    int auto_w = 0;
+    for (int i = 0; i < (int)incoming.size(); i++) {
+        GradeEntry& ge = incoming[i];
+        GradeEntry* ex = find_grade(ge.rollNo, ge.subCode, ge.semester, ge.year);
+        if (ex) ex->grade = ge.grade;
+        else    gradeEntries.push_back(ge);
+        res.imported++;
+    }
+    // Auto-W
+    for (int i = 0; i < (int)enrollments.size(); i++) {
+        const Enrollment& e = enrollments[i];
+        bool in_batch = false;
+        for (int j = 0; j < (int)isems.size(); j++)
+            if (isems[j] == e.semester && iyrs[j] == e.year) { in_batch = true; break; }
+        if (!in_batch) continue;
+        if (!find_grade(e.rollNo, e.subCode, e.semester, e.year)) {
+            GradeEntry ge;
+            ge.rollNo = e.rollNo; ge.subCode = e.subCode;
+            ge.grade = "W"; ge.semester = e.semester; ge.year = e.year;
+            gradeEntries.push_back(ge);
+            auto_w++;
+        }
+    }
+    save_grades();
+    res.errors = "auto_w:" + to_string(auto_w);
+    return res;
 }
