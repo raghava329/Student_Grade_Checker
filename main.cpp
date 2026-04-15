@@ -770,3 +770,197 @@ ImportResult do_import_grades(const string& csv_content) {
     res.errors = "auto_w:" + to_string(auto_w);
     return res;
 }
+// ================================================================
+// SECTION 13: HTTP SERVER & API ROUTES
+// ================================================================
+
+int main() {
+    load_all();
+    cout << "  Data loaded: " << studentMap.size() << " students, "
+         << subjectMap.size() << " subjects, "
+         << enrollments.size() << " enrollments, "
+         << gradeEntries.size() << " grades\n";
+
+    httplib::Server svr;
+
+    // Serve static files from public/
+    svr.set_mount_point("/", "./public");
+
+    // CORS headers for all responses
+    svr.set_post_routing_handler([](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+    });
+
+    svr.Options("/(.*)", [](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+        res.status = 204;
+    });
+
+    // ---- STATS ----
+    svr.Get("/api/stats", [](const httplib::Request&, httplib::Response& res) {
+        string json = "{" + json_int("students", studentMap.size()) + ","
+                    + json_int("subjects", subjectMap.size()) + ","
+                    + json_int("enrollments", (int)enrollments.size()) + ","
+                    + json_int("grades", (int)gradeEntries.size()) + "}";
+        res.set_content(json, "application/json");
+    });
+
+    // ---- LOGIN ----
+    svr.Post("/api/login/admin", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* pwd = body.find("password");
+        if (pwd && *pwd == "admin123") {
+            res.set_content("{" + json_bool("success", true) + "}", "application/json");
+        } else {
+            res.status = 401;
+            res.set_content("{" + json_bool("success", false) + "," + json_str("error", "Wrong password") + "}", "application/json");
+        }
+    });
+
+    svr.Post("/api/login/student", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* roll = body.find("rollNo");
+        string* pwd  = body.find("password");
+        if (!roll || !pwd) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Missing fields") + "}", "application/json");
+            return;
+        }
+        Student* s = studentMap.find(*roll);
+        if (!s) {
+            res.status = 401;
+            res.set_content("{" + json_str("error", "Roll number not found") + "}", "application/json");
+            return;
+        }
+        if (*pwd != make_password(s->name, s->rollNo)) {
+            res.status = 401;
+            res.set_content("{" + json_str("error", "Incorrect password") + "}", "application/json");
+            return;
+        }
+        res.set_content("{" + json_bool("success", true) + "," + json_str("rollNo", s->rollNo) + "," + json_str("name", s->name) + "}", "application/json");
+    });
+
+    // ---- STUDENTS ----
+    svr.Get("/api/students", [](const httplib::Request& req, httplib::Response& res) {
+        vector<Student> all = studentMap.all_values();
+        string sort_by = req.has_param("sort") ? req.get_param_value("sort") : "";
+        string filter  = req.has_param("filter") ? req.get_param_value("filter") : "";
+
+        // Filter
+        if (!filter.empty()) {
+            vector<Student> filtered;
+            for (int i = 0; i < (int)all.size(); i++) {
+                if (str_contains_ci(all[i].name, filter) ||
+                    str_contains_ci(all[i].rollNo, filter) ||
+                    str_contains_ci(all[i].dept, filter))
+                    filtered.push_back(all[i]);
+            }
+            all = filtered;
+        }
+
+        // Sort
+        if (sort_by == "roll")
+            sort_vec(all, [](const Student& a, const Student& b) { return a.rollNo < b.rollNo; });
+        else if (sort_by == "name")
+            sort_vec(all, [](const Student& a, const Student& b) { return a.name < b.name; });
+        else if (sort_by == "cgpa")
+            sort_vec(all, [](const Student& a, const Student& b) { return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo); });
+        else if (sort_by == "dept")
+            sort_vec(all, [](const Student& a, const Student& b) { return a.dept < b.dept; });
+
+        string json = "[";
+        for (int i = 0; i < (int)all.size(); i++) {
+            if (i > 0) json += ",";
+            json += student_to_json(all[i]);
+        }
+        json += "]";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Get("/api/students/:roll", [](const httplib::Request& req, httplib::Response& res) {
+        string roll = req.path_params.at("roll");
+        Student* s = studentMap.find(roll);
+        if (!s) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Student not found") + "}", "application/json");
+            return;
+        }
+        res.set_content(student_detail_json(*s), "application/json");
+    });
+
+    svr.Post("/api/students", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* roll = body.find("rollNo");
+        string* name = body.find("name");
+        string* dept = body.find("dept");
+        string* sem  = body.find("semester");
+        string* yr   = body.find("year");
+        if (!roll || !name || !dept || !sem || !yr ||
+            roll->empty() || name->empty() || dept->empty()) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "All fields required") + "}", "application/json");
+            return;
+        }
+        int semester = safe_stoi(*sem), year = safe_stoi(*yr);
+        if (semester < 1 || year < 2000) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Semester>=1, Year>=2000") + "}", "application/json");
+            return;
+        }
+        if (studentMap.find(*roll)) {
+            res.status = 409;
+            res.set_content("{" + json_str("error", "Roll No already exists") + "}", "application/json");
+            return;
+        }
+        Student s;
+        s.rollNo = *roll; s.name = *name; s.dept = *dept;
+        s.semester = semester; s.year = year;
+        studentMap.insert(s.rollNo, s);
+        save_students();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    svr.Put("/api/students/:roll", [](const httplib::Request& req, httplib::Response& res) {
+        string roll = req.path_params.at("roll");
+        Student* s = studentMap.find(roll);
+        if (!s) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Not found") + "}", "application/json");
+            return;
+        }
+        auto body = parse_json_body(req.body);
+        string* name = body.find("name");
+        string* dept = body.find("dept");
+        string* sem  = body.find("semester");
+        string* yr   = body.find("year");
+        if (name && !name->empty()) s->name = *name;
+        if (dept && !dept->empty()) s->dept = *dept;
+        if (sem  && safe_stoi(*sem) >= 1)    s->semester = safe_stoi(*sem);
+        if (yr   && safe_stoi(*yr) >= 2000)  s->year     = safe_stoi(*yr);
+        save_students();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    svr.Delete("/api/students/:roll", [](const httplib::Request& req, httplib::Response& res) {
+        string roll = req.path_params.at("roll");
+        if (!studentMap.find(roll)) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Not found") + "}", "application/json");
+            return;
+        }
+        studentMap.erase(roll);
+        vector<Enrollment> ne;
+        for (int i = 0; i < (int)enrollments.size(); i++)
+            if (enrollments[i].rollNo != roll) ne.push_back(enrollments[i]);
+        enrollments = ne;
+        vector<GradeEntry> ng;
+        for (int i = 0; i < (int)gradeEntries.size(); i++)
+            if (gradeEntries[i].rollNo != roll) ng.push_back(gradeEntries[i]);
+        gradeEntries = ng;
+        save_all();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
