@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGMS | IITJ - Student Grade Management System</title>
+    <meta name="description" content="Student Grade Management System for IIT Jodhpur. Manage students, subjects, grades, and academic reports.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ============ LOGIN SCREEN ============ -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-brand">
+                <div class="brand-icon">IITJ</div>
+                <h1>Student Grade Management System</h1>
+                <p class="brand-sub">IIT Jodhpur</p>
+            </div>
+            <div class="login-cards">
+                <div class="login-card" id="admin-login-card">
+                    <div class="login-card-icon">👨‍💼</div>
+                    <h2>Admin Portal</h2>
+                    <p>Manage students, subjects, grades and reports</p>
+                    <div class="login-form" id="admin-form">
+                        <input type="password" id="admin-password" placeholder="Enter admin password" autocomplete="off">
+                        <button id="admin-login-btn" onclick="loginAdmin()">Login</button>
+                    </div>
+                    <div class="login-error" id="admin-error"></div>
+                </div>
+                <div class="login-card" id="student-login-card">
+                    <div class="login-card-icon">🎓</div>
+                    <h2>Student Portal</h2>
+                    <p>View your grades, SGPA, CGPA and academic record</p>
+                    <div class="login-form" id="student-form">
+                        <input type="text" id="student-roll" placeholder="Roll Number" autocomplete="off">
+                        <input type="password" id="student-password" placeholder="Password" autocomplete="off">
+                        <button id="student-login-btn" onclick="loginStudent()">Login</button>
+                    </div>
+                    <div class="login-error" id="student-error"></div>
+                </div>
+            </div>
+            <div class="login-stats" id="login-stats"></div>
+        </div>
+    </div>
+
+    <!-- ============ ADMIN DASHBOARD ============ -->
+    <div id="admin-screen" class="screen">
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-icon-sm">IITJ</span>
+                <span class="brand-text">SGMS</span>
+            </div>
+            <div class="sidebar-menu">
+                <div class="sidebar-section">Import Data</div>
+                <a class="sidebar-link active" data-page="import" onclick="navigateTo('import')">
+                    <span class="sidebar-icon">📥</span> Import CSV
+                </a>
+                <div class="sidebar-section">Students</div>
+                <a class="sidebar-link" data-page="students" onclick="navigateTo('students')">
+                    <span class="sidebar-icon">👥</span> All Students
+                </a>
+                <a class="sidebar-link" data-page="student-add" onclick="navigateTo('student-add')">
+                    <span class="sidebar-icon">➕</span> Add Student
+                </a>
+                <div class="sidebar-section">Subjects</div>
+                <a class="sidebar-link" data-page="subjects" onclick="navigateTo('subjects')">
+                    <span class="sidebar-icon">📚</span> All Subjects
+                </a>
+                <a class="sidebar-link" data-page="subject-add" onclick="navigateTo('subject-add')">
+                    <span class="sidebar-icon">➕</span> Add Subject
+                </a>
+                <div class="sidebar-section">Grades</div>
+                <a class="sidebar-link" data-page="enroll" onclick="navigateTo('enroll')">
+                    <span class="sidebar-icon">📝</span> Enroll Student
+                </a>
+                <a class="sidebar-link" data-page="assign-grade" onclick="navigateTo('assign-grade')">
+                    <span class="sidebar-icon">✏️</span> Assign Grade
+                </a>
+                <div class="sidebar-section">Reports</div>
+                <a class="sidebar-link" data-page="reports" onclick="navigateTo('reports')">
+                    <span class="sidebar-icon">📊</span> Statistics
+                </a>
+                <a class="sidebar-link" data-page="leaderboard" onclick="navigateTo('leaderboard')">
+                    <span class="sidebar-icon">🏆</span> Leaderboard
+                </a>
+                <a class="sidebar-link" data-page="dept-report" onclick="navigateTo('dept-report')">
+                    <span class="sidebar-icon">🏛️</span> By Department
+                </a>
+                <div class="sidebar-section">System</div>
+                <a class="sidebar-link danger" onclick="resetSystem()">
+                    <span class="sidebar-icon">⚠️</span> Reset Data
+                </a>
+            </div>
+            <div class="sidebar-footer">
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="topbar">
+                <button class="hamburger" onclick="toggleSidebar()">☰</button>
+                <h2 class="topbar-title" id="page-title">Import Data</h2>
+                <div class="topbar-actions">
+                    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </header>
+            <div class="content-area" id="content-area">
+                <!-- Dynamic content loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- ============ STUDENT PORTAL ============ -->
+    <div id="student-screen" class="screen">
+        <header class="student-topbar">
+            <div class="student-topbar-left">
+                <span class="brand-icon-sm">IITJ</span>
+                <span>Student Portal</span>
+            </div>
+            <div class="student-topbar-right">
+                <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            </div>
+        </header>
+        <div class="student-content" id="student-content">
+            <!-- Dynamic student content -->
+        </div>
+    </div>
+
+    <!-- ============ STUDENT DETAIL MODAL ============ -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

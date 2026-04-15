@@ -1,5 +1,15 @@
+// ================================================================
+// Student Grade Management System - IIT Jodhpur
+// C++ REST API Backend | Web UI Frontend
+// All algorithms and data structures self-implemented
+// HTTP via cpp-httplib (single header)
+// Compile (Windows): g++ -std=c++14 -o server main.cpp -lws2_32
+// Compile (Linux):   g++ -std=c++14 -pthread -o server main.cpp
+// Run: ./server   then open http://localhost:3000
+// ================================================================
+
 #include <bits/stdc++.h>
-#include <httplib.h>
+#include "httplib.h"
 using namespace std;
 
 // ================================================================
@@ -112,8 +122,6 @@ string json_bool(const string& key, bool val) {
     return "\"" + key + "\":" + (val ? "true" : "false");
 }
 
-
-
 // ================================================================
 // SECTION 4: HASH MAP (manual chaining with djb2)
 // ================================================================
@@ -223,6 +231,7 @@ int bin_search_str(const vector<string>& arr, const string& key) {
     }
     return -1;
 }
+
 // ================================================================
 // SECTION 6: DATA MODELS
 // ================================================================
@@ -770,6 +779,7 @@ ImportResult do_import_grades(const string& csv_content) {
     res.errors = "auto_w:" + to_string(auto_w);
     return res;
 }
+
 // ================================================================
 // SECTION 13: HTTP SERVER & API ROUTES
 // ================================================================
@@ -964,6 +974,7 @@ int main() {
         save_all();
         res.set_content("{" + json_bool("success", true) + "}", "application/json");
     });
+
     // ---- SUBJECTS ----
     svr.Get("/api/subjects", [](const httplib::Request&, httplib::Response& res) {
         vector<Subject> all = subjectMap.all_values();
@@ -1295,4 +1306,4 @@ int main() {
 
     svr.listen("0.0.0.0", 3000);
     return 0;
-} 
+}
