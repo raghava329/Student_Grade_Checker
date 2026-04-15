@@ -77,6 +77,43 @@ vector<string> split_csv(const string& line) {
     parts.push_back(str_trim(cur));
     return parts;
 }
+
+/ ================================================================
+// SECTION 3: JSON HELPERS (manual — no JSON library)
+// ================================================================
+
+string json_escape(const string& s) {
+    string r;
+    for (int i = 0; i < (int)s.size(); i++) {
+        char c = s[i];
+        if (c == '"')       r += "\\\"";
+        else if (c == '\\') r += "\\\\";
+        else if (c == '\n') r += "\\n";
+        else if (c == '\r') r += "\\r";
+        else if (c == '\t') r += "\\t";
+        else r += c;
+    }
+    return r;
+}
+
+string json_str(const string& key, const string& val) {
+    return "\"" + key + "\":\"" + json_escape(val) + "\"";
+}
+
+string json_int(const string& key, int val) {
+    return "\"" + key + "\":" + to_string(val);
+}
+
+string json_float(const string& key, float val) {
+    return "\"" + key + "\":" + float_to_str(val, 2);
+}
+
+string json_bool(const string& key, bool val) {
+    return "\"" + key + "\":" + (val ? "true" : "false");
+}
+
+
+
 // ================================================================
 // SECTION 4: HASH MAP (manual chaining with djb2)
 // ================================================================
@@ -297,6 +334,131 @@ string make_password(const string& name, const string& roll) {
         if (nm[i] != ' ') pfx += nm[i];
     string sfx = ((int)roll.size() >= 4) ? roll.substr(roll.size() - 4) : roll;
     return pfx + sfx;
+}
+
+// ================================================================
+// SECTION 9: PERSISTENCE (CSV file I/O)
+// ================================================================
+
+const string F_STUDENTS    = "data_students.csv";
+const string F_SUBJECTS    = "data_subjects.csv";
+const string F_ENROLLMENTS = "data_enrollments.csv";
+const string F_GRADES      = "data_grades.csv";
+
+void save_students() {
+    ofstream f(F_STUDENTS);
+    if (!f) return;
+    f << "RollNo,Name,Dept,Semester,Year\n";
+    vector<Student> all = studentMap.all_values();
+    for (int i = 0; i < (int)all.size(); i++)
+        f << all[i].rollNo << "," << all[i].name << "," << all[i].dept << ","
+          << all[i].semester << "," << all[i].year << "\n";
+}
+
+void save_subjects() {
+    ofstream f(F_SUBJECTS);
+    if (!f) return;
+    f << "Code,Name,Credits\n";
+    vector<Subject> all = subjectMap.all_values();
+    for (int i = 0; i < (int)all.size(); i++)
+        f << all[i].code << "," << all[i].name << ","
+          << float_to_str(all[i].credits, 1) << "\n";
+}
+
+void save_enrollments() {
+    ofstream f(F_ENROLLMENTS);
+    if (!f) return;
+    f << "RollNo,SubCode,Semester,Year\n";
+    for (int i = 0; i < (int)enrollments.size(); i++)
+        f << enrollments[i].rollNo << "," << enrollments[i].subCode << ","
+          << enrollments[i].semester << "," << enrollments[i].year << "\n";
+}
+
+void save_grades() {
+    ofstream f(F_GRADES);
+    if (!f) return;
+    f << "RollNo,SubCode,Grade,Semester,Year\n";
+    for (int i = 0; i < (int)gradeEntries.size(); i++)
+        f << gradeEntries[i].rollNo << "," << gradeEntries[i].subCode << ","
+          << gradeEntries[i].grade << "," << gradeEntries[i].semester << ","
+          << gradeEntries[i].year << "\n";
+}
+
+void save_all() {
+    save_students();
+    save_subjects();
+    save_enrollments();
+    save_grades();
+}
+
+void load_all() {
+    {
+        ifstream f(F_STUDENTS);
+        if (f) {
+            string line;
+            getline(f, line);
+            while (getline(f, line)) {
+                line = str_trim(line);
+                if (line.empty()) continue;
+                vector<string> p = split_csv(line);
+                if ((int)p.size() < 5) continue;
+                Student s;
+                s.rollNo = p[0]; s.name = p[1]; s.dept = p[2];
+                s.semester = safe_stoi(p[3]); s.year = safe_stoi(p[4]);
+                if (!s.rollNo.empty()) studentMap.insert(s.rollNo, s);
+            }
+        }
+    }
+    {
+        ifstream f(F_SUBJECTS);
+        if (f) {
+            string line;
+            getline(f, line);
+            while (getline(f, line)) {
+                line = str_trim(line);
+                if (line.empty()) continue;
+                vector<string> p = split_csv(line);
+                if ((int)p.size() < 3) continue;
+                Subject s;
+                s.code = p[0]; s.name = p[1]; s.credits = safe_stof(p[2]);
+                if (!s.code.empty()) subjectMap.insert(s.code, s);
+            }
+        }
+    }
+    {
+        ifstream f(F_ENROLLMENTS);
+        if (f) {
+            string line;
+            getline(f, line);
+            while (getline(f, line)) {
+                line = str_trim(line);
+                if (line.empty()) continue;
+                vector<string> p = split_csv(line);
+                if ((int)p.size() < 4) continue;
+                Enrollment e;
+                e.rollNo = p[0]; e.subCode = p[1];
+                e.semester = safe_stoi(p[2]); e.year = safe_stoi(p[3]);
+                if (!e.rollNo.empty()) enrollments.push_back(e);
+            }
+        }
+    }
+    {
+        ifstream f(F_GRADES);
+        if (f) {
+            string line;
+            getline(f, line);
+            while (getline(f, line)) {
+                line = str_trim(line);
+                if (line.empty()) continue;
+                vector<string> p = split_csv(line);
+                if ((int)p.size() < 5) continue;
+                GradeEntry ge;
+                ge.rollNo = p[0]; ge.subCode = p[1]; ge.grade = p[2];
+                ge.semester = safe_stoi(p[3]); ge.year = safe_stoi(p[4]);
+                if (!ge.rollNo.empty()) gradeEntries.push_back(ge);
+            }
+        }
+    }
 }
 // ================================================================
 // SECTION 12: CSV IMPORT LOGIC (reusable for API)
