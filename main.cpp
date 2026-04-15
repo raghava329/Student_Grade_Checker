@@ -149,3 +149,39 @@ struct HashMap {
 
     int size() const { return count; }
 };
+
+// ================================================================
+// SECTION 5: SORTING (merge sort) & SEARCHING (binary search)
+// ================================================================
+
+template<typename T, typename Cmp>
+void merge_sort(vector<T>& arr, int l, int r, Cmp cmp) {
+    if (r <= l) return;
+    int mid = (l + r) / 2;
+    merge_sort(arr, l, mid, cmp);
+    merge_sort(arr, mid + 1, r, cmp);
+    vector<T> tmp;
+    int i = l, j = mid + 1;
+    while (i <= mid && j <= r)
+        tmp.push_back(cmp(arr[i], arr[j]) ? arr[i++] : arr[j++]);
+    while (i <= mid) tmp.push_back(arr[i++]);
+    while (j <= r)   tmp.push_back(arr[j++]);
+    for (int k = 0; k < (int)tmp.size(); k++) arr[l + k] = tmp[k];
+}
+
+template<typename T, typename Cmp>
+void sort_vec(vector<T>& arr, Cmp cmp) {
+    if ((int)arr.size() > 1)
+        merge_sort(arr, 0, (int)arr.size() - 1, cmp);
+}
+
+int bin_search_str(const vector<string>& arr, const string& key) {
+    int lo = 0, hi = (int)arr.size() - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (arr[mid] == key)  return mid;
+        if (arr[mid] < key)   lo = mid + 1;
+        else                  hi = mid - 1;
+    }
+    return -1;
+}
