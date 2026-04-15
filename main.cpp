@@ -964,3 +964,335 @@ int main() {
         save_all();
         res.set_content("{" + json_bool("success", true) + "}", "application/json");
     });
+    // ---- SUBJECTS ----
+    svr.Get("/api/subjects", [](const httplib::Request&, httplib::Response& res) {
+        vector<Subject> all = subjectMap.all_values();
+        sort_vec(all, [](const Subject& a, const Subject& b) { return a.code < b.code; });
+        string json = "[";
+        for (int i = 0; i < (int)all.size(); i++) {
+            if (i > 0) json += ",";
+            json += subject_to_json(all[i]);
+        }
+        json += "]";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Post("/api/subjects", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* code = body.find("code");
+        string* name = body.find("name");
+        string* cred = body.find("credits");
+        if (!code || !name || !cred || code->empty() || name->empty()) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "All fields required") + "}", "application/json");
+            return;
+        }
+        float credits = safe_stof(*cred);
+        if (credits <= 0) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Credits must be > 0") + "}", "application/json");
+            return;
+        }
+        if (subjectMap.find(*code)) {
+            res.status = 409;
+            res.set_content("{" + json_str("error", "Code already exists") + "}", "application/json");
+            return;
+        }
+        Subject s;
+        s.code = *code; s.name = *name; s.credits = credits;
+        subjectMap.insert(s.code, s);
+        save_subjects();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    svr.Put("/api/subjects/:code", [](const httplib::Request& req, httplib::Response& res) {
+        string code = req.path_params.at("code");
+        Subject* s = subjectMap.find(code);
+        if (!s) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Not found") + "}", "application/json");
+            return;
+        }
+        auto body = parse_json_body(req.body);
+        string* name = body.find("name");
+        string* cred = body.find("credits");
+        if (name && !name->empty()) s->name = *name;
+        if (cred && safe_stof(*cred) > 0) s->credits = safe_stof(*cred);
+        save_subjects();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    svr.Delete("/api/subjects/:code", [](const httplib::Request& req, httplib::Response& res) {
+        string code = req.path_params.at("code");
+        if (!subjectMap.find(code)) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Not found") + "}", "application/json");
+            return;
+        }
+        subjectMap.erase(code);
+        save_subjects();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    // ---- ENROLLMENT ----
+    svr.Post("/api/enroll", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* roll = body.find("rollNo");
+        string* sub  = body.find("subCode");
+        string* sem  = body.find("semester");
+        string* yr   = body.find("year");
+        if (!roll || !sub || !sem || !yr) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "All fields required") + "}", "application/json");
+            return;
+        }
+        if (!studentMap.find(*roll)) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Student not found") + "}", "application/json");
+            return;
+        }
+        if (!subjectMap.find(*sub)) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Subject not found") + "}", "application/json");
+            return;
+        }
+        int semester = safe_stoi(*sem), year = safe_stoi(*yr);
+        if (find_enrollment(*roll, *sub, semester, year)) {
+            res.status = 409;
+            res.set_content("{" + json_str("error", "Already enrolled") + "}", "application/json");
+            return;
+        }
+        Enrollment e;
+        e.rollNo = *roll; e.subCode = *sub; e.semester = semester; e.year = year;
+        enrollments.push_back(e);
+        save_enrollments();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    // ---- GRADES ----
+    svr.Get("/api/grades", [](const httplib::Request& req, httplib::Response& res) {
+        string roll = req.has_param("roll") ? req.get_param_value("roll") : "";
+        string json = "[";
+        bool first = true;
+        for (int i = 0; i < (int)gradeEntries.size(); i++) {
+            if (!roll.empty() && gradeEntries[i].rollNo != roll) continue;
+            if (!first) json += ",";
+            json += grade_to_json(gradeEntries[i]);
+            first = false;
+        }
+        json += "]";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Post("/api/grades", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* roll  = body.find("rollNo");
+        string* sub   = body.find("subCode");
+        string* grade = body.find("grade");
+        string* sem   = body.find("semester");
+        string* yr    = body.find("year");
+        if (!roll || !sub || !grade || !sem || !yr) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "All fields required") + "}", "application/json");
+            return;
+        }
+        if (!studentMap.find(*roll)) {
+            res.status = 404;
+            res.set_content("{" + json_str("error", "Student not found") + "}", "application/json");
+            return;
+        }
+        if (!is_valid_grade(*grade)) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Invalid grade") + "}", "application/json");
+            return;
+        }
+        int semester = safe_stoi(*sem), year = safe_stoi(*yr);
+        if (!find_enrollment(*roll, *sub, semester, year)) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Not enrolled in this subject") + "}", "application/json");
+            return;
+        }
+        GradeEntry* ge = find_grade(*roll, *sub, semester, year);
+        if (ge) {
+            ge->grade = *grade;
+        } else {
+            GradeEntry ng;
+            ng.rollNo = *roll; ng.subCode = *sub; ng.grade = *grade;
+            ng.semester = semester; ng.year = year;
+            gradeEntries.push_back(ng);
+        }
+        save_grades();
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    // ---- CSV IMPORTS (file upload) ----
+    svr.Post("/api/import/students", [](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_file("file")) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "No file uploaded") + "}", "application/json");
+            return;
+        }
+        auto file = req.get_file_value("file");
+        ImportResult r = do_import_students(file.content);
+        string json = "{" + json_int("imported", r.imported) + "," + json_int("skipped", r.skipped);
+        if (!r.errors.empty()) json += "," + json_str("errors", r.errors);
+        json += "}";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Post("/api/import/subjects", [](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_file("file")) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "No file uploaded") + "}", "application/json");
+            return;
+        }
+        auto file = req.get_file_value("file");
+        ImportResult r = do_import_subjects(file.content);
+        string json = "{" + json_int("imported", r.imported) + "," + json_int("skipped", r.skipped);
+        if (!r.errors.empty()) json += "," + json_str("errors", r.errors);
+        json += "}";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Post("/api/import/enrollments", [](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_file("file")) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "No file uploaded") + "}", "application/json");
+            return;
+        }
+        auto file = req.get_file_value("file");
+        ImportResult r = do_import_enrollments(file.content);
+        string json = "{" + json_int("imported", r.imported) + "," + json_int("skipped", r.skipped);
+        if (!r.errors.empty()) json += "," + json_str("errors", r.errors);
+        json += "}";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Post("/api/import/grades", [](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_file("file")) {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "No file uploaded") + "}", "application/json");
+            return;
+        }
+        auto file = req.get_file_value("file");
+        ImportResult r = do_import_grades(file.content);
+        string json = "{" + json_int("imported", r.imported) + "," + json_int("skipped", r.skipped);
+        if (!r.errors.empty()) json += "," + json_str("errors", r.errors);
+        json += "}";
+        res.set_content(json, "application/json");
+    });
+
+    // ---- EXPORT ----
+    svr.Get("/api/export/students", [](const httplib::Request& req, httplib::Response& res) {
+        vector<Student> all = studentMap.all_values();
+        string sort_by = req.has_param("sort") ? req.get_param_value("sort") : "roll";
+        if (sort_by == "name")
+            sort_vec(all, [](const Student& a, const Student& b) { return a.name < b.name; });
+        else if (sort_by == "cgpa")
+            sort_vec(all, [](const Student& a, const Student& b) { return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo); });
+        else
+            sort_vec(all, [](const Student& a, const Student& b) { return a.rollNo < b.rollNo; });
+
+        string csv = "RollNo,Name,Dept,Semester,Year,CGPA\n";
+        for (int i = 0; i < (int)all.size(); i++) {
+            csv += all[i].rollNo + "," + all[i].name + "," + all[i].dept + ","
+                 + to_string(all[i].semester) + "," + to_string(all[i].year) + ","
+                 + float_to_str(calc_cgpa(all[i].rollNo), 2) + "\n";
+        }
+        res.set_header("Content-Disposition", "attachment; filename=students_export.csv");
+        res.set_content(csv, "text/csv");
+    });
+
+    // ---- REPORTS ----
+    svr.Get("/api/reports/leaderboard", [](const httplib::Request&, httplib::Response& res) {
+        vector<Student> all = studentMap.all_values();
+        sort_vec(all, [](const Student& a, const Student& b) {
+            return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
+        });
+        int show = (int)all.size() < 20 ? (int)all.size() : 20;
+        string json = "[";
+        for (int i = 0; i < show; i++) {
+            if (i > 0) json += ",";
+            json += "{" + json_int("rank", i + 1) + ","
+                  + json_str("rollNo", all[i].rollNo) + ","
+                  + json_str("name", all[i].name) + ","
+                  + json_str("dept", all[i].dept) + ","
+                  + json_float("cgpa", calc_cgpa(all[i].rollNo)) + "}";
+        }
+        json += "]";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Get("/api/reports/stats", [](const httplib::Request&, httplib::Response& res) {
+        vector<Student> all = studentMap.all_values();
+        float sum = 0, best = -1, worst = 11;
+        string best_name, worst_name;
+        int graded = 0;
+        for (int i = 0; i < (int)all.size(); i++) {
+            float c = calc_cgpa(all[i].rollNo);
+            if (c <= 0.0f) continue;
+            graded++; sum += c;
+            if (c > best)  { best = c;  best_name  = all[i].name; }
+            if (c < worst) { worst = c; worst_name = all[i].name; }
+        }
+        string json = "{";
+        json += json_int("totalStudents", studentMap.size()) + ",";
+        json += json_int("totalSubjects", subjectMap.size()) + ",";
+        json += json_int("totalEnrollments", (int)enrollments.size()) + ",";
+        json += json_int("totalGrades", (int)gradeEntries.size()) + ",";
+        json += json_int("gradedStudents", graded) + ",";
+        json += json_float("avgCgpa", graded > 0 ? sum / graded : 0) + ",";
+        json += json_float("highestCgpa", best > 0 ? best : 0) + ",";
+        json += json_str("highestName", best_name) + ",";
+        json += json_float("lowestCgpa", worst < 11 ? worst : 0) + ",";
+        json += json_str("lowestName", worst_name);
+        json += "}";
+        res.set_content(json, "application/json");
+    });
+
+    svr.Get("/api/reports/department", [](const httplib::Request& req, httplib::Response& res) {
+        string dept = req.has_param("dept") ? req.get_param_value("dept") : "";
+        vector<Student> all = studentMap.all_values();
+        vector<Student> filtered;
+        for (int i = 0; i < (int)all.size(); i++)
+            if (dept.empty() || str_contains_ci(all[i].dept, dept))
+                filtered.push_back(all[i]);
+        sort_vec(filtered, [](const Student& a, const Student& b) {
+            return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
+        });
+        string json = "[";
+        for (int i = 0; i < (int)filtered.size(); i++) {
+            if (i > 0) json += ",";
+            json += student_to_json(filtered[i]);
+        }
+        json += "]";
+        res.set_content(json, "application/json");
+    });
+
+    // ---- RESET ----
+    svr.Post("/api/reset", [](const httplib::Request& req, httplib::Response& res) {
+        auto body = parse_json_body(req.body);
+        string* conf = body.find("confirm");
+        if (!conf || *conf != "CONFIRM") {
+            res.status = 400;
+            res.set_content("{" + json_str("error", "Type CONFIRM to proceed") + "}", "application/json");
+            return;
+        }
+        studentMap.clear(); subjectMap.clear();
+        enrollments.clear(); gradeEntries.clear();
+        { ofstream f(F_STUDENTS,    ios::trunc); }
+        { ofstream f(F_SUBJECTS,    ios::trunc); }
+        { ofstream f(F_ENROLLMENTS, ios::trunc); }
+        { ofstream f(F_GRADES,      ios::trunc); }
+        res.set_content("{" + json_bool("success", true) + "}", "application/json");
+    });
+
+    // Start server
+    cout << "\n============================================\n";
+    cout << "  SGMS Server running on http://localhost:3000\n";
+    cout << "  Open this URL in your browser\n";
+    cout << "============================================\n\n";
+
+    svr.listen("0.0.0.0", 3000);
+    return 0;
+}
