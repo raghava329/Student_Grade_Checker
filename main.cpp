@@ -185,3 +185,115 @@ int bin_search_str(const vector<string>& arr, const string& key) {
     }
     return -1;
 }
+// ================================================================
+// SECTION 6: DATA MODELS
+// ================================================================
+
+struct Student {
+    string rollNo, name, dept;
+    int    semester, year;
+};
+
+struct Subject {
+    string code, name;
+    float  credits;
+};
+
+struct Enrollment {
+    string rollNo, subCode;
+    int    semester, year;
+};
+
+struct GradeEntry {
+    string rollNo, subCode, grade;
+    int    semester, year;
+};
+
+// ================================================================
+// SECTION 7: GLOBAL STATE
+// ================================================================
+
+HashMap<string, Student> studentMap;
+HashMap<string, Subject> subjectMap;
+vector<Enrollment>       enrollments;
+vector<GradeEntry>       gradeEntries;
+
+// ================================================================
+// SECTION 8: GRADE LOGIC
+// ================================================================
+
+bool is_valid_grade(const string& g) {
+    return g == "A" || g == "A-" || g == "B" || g == "B-" ||
+           g == "C" || g == "C-" || g == "D" || g == "F" || g == "W";
+}
+
+float grade_to_pts(const string& g) {
+    if (g == "A")  return 10.0f;
+    if (g == "A-") return 9.0f;
+    if (g == "B")  return 8.0f;
+    if (g == "B-") return 7.0f;
+    if (g == "C")  return 6.0f;
+    if (g == "C-") return 5.0f;
+    if (g == "D")  return 4.0f;
+    return 0.0f;
+}
+
+bool counts_for_gpa(const string& g) {
+    return g != "F" && g != "W";
+}
+
+GradeEntry* find_grade(const string& roll, const string& sub, int sem, int yr) {
+    for (int i = 0; i < (int)gradeEntries.size(); i++) {
+        GradeEntry& ge = gradeEntries[i];
+        if (ge.rollNo == roll && str_eq_ci(ge.subCode, sub) &&
+            ge.semester == sem && ge.year == yr)
+            return &ge;
+    }
+    return nullptr;
+}
+
+Enrollment* find_enrollment(const string& roll, const string& sub, int sem, int yr) {
+    for (int i = 0; i < (int)enrollments.size(); i++) {
+        Enrollment& e = enrollments[i];
+        if (e.rollNo == roll && str_eq_ci(e.subCode, sub) &&
+            e.semester == sem && e.year == yr)
+            return &e;
+    }
+    return nullptr;
+}
+
+float calc_sgpa(const string& roll, int sem, int yr) {
+    float pts = 0, cred = 0;
+    for (int i = 0; i < (int)gradeEntries.size(); i++) {
+        const GradeEntry& ge = gradeEntries[i];
+        if (ge.rollNo != roll || ge.semester != sem || ge.year != yr) continue;
+        if (!counts_for_gpa(ge.grade)) continue;
+        Subject* sub = subjectMap.find(ge.subCode);
+        if (!sub) continue;
+        pts  += grade_to_pts(ge.grade) * sub->credits;
+        cred += sub->credits;
+    }
+    return cred > 0 ? pts / cred : 0.0f;
+}
+
+float calc_cgpa(const string& roll) {
+    float pts = 0, cred = 0;
+    for (int i = 0; i < (int)gradeEntries.size(); i++) {
+        const GradeEntry& ge = gradeEntries[i];
+        if (ge.rollNo != roll || !counts_for_gpa(ge.grade)) continue;
+        Subject* sub = subjectMap.find(ge.subCode);
+        if (!sub) continue;
+        pts  += grade_to_pts(ge.grade) * sub->credits;
+        cred += sub->credits;
+    }
+    return cred > 0 ? pts / cred : 0.0f;
+}
+
+string make_password(const string& name, const string& roll) {
+    string nm = str_lower(name);
+    string pfx;
+    for (int i = 0; i < (int)nm.size() && (int)pfx.size() < 5; i++)
+        if (nm[i] != ' ') pfx += nm[i];
+    string sfx = ((int)roll.size() >= 4) ? roll.substr(roll.size() - 4) : roll;
+    return pfx + sfx;
+}
