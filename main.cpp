@@ -460,6 +460,164 @@ void load_all() {
         }
     }
 }
+
+// ================================================================
+// SECTION 10: JSON SERIALIZERS
+// ================================================================
+
+string student_to_json(const Student& s) {
+    float cgpa = calc_cgpa(s.rollNo);
+    return "{" + json_str("rollNo", s.rollNo) + ","
+         + json_str("name", s.name) + ","
+         + json_str("dept", s.dept) + ","
+         + json_int("semester", s.semester) + ","
+         + json_int("year", s.year) + ","
+         + json_float("cgpa", cgpa) + "}";
+}
+
+string subject_to_json(const Subject& s) {
+    return "{" + json_str("code", s.code) + ","
+         + json_str("name", s.name) + ","
+         + json_float("credits", s.credits) + "}";
+}
+
+string grade_to_json(const GradeEntry& ge) {
+    Subject* sub = subjectMap.find(ge.subCode);
+    return "{" + json_str("rollNo", ge.rollNo) + ","
+         + json_str("subCode", ge.subCode) + ","
+         + json_str("subName", sub ? sub->name : "(unknown)") + ","
+         + json_float("credits", sub ? sub->credits : 0) + ","
+         + json_str("grade", ge.grade) + ","
+         + json_float("points", grade_to_pts(ge.grade)) + ","
+         + json_bool("countsForGpa", counts_for_gpa(ge.grade)) + ","
+         + json_int("semester", ge.semester) + ","
+         + json_int("year", ge.year) + "}";
+}
+
+string enrollment_to_json(const Enrollment& e) {
+    Subject* sub = subjectMap.find(e.subCode);
+    return "{" + json_str("rollNo", e.rollNo) + ","
+         + json_str("subCode", e.subCode) + ","
+         + json_str("subName", sub ? sub->name : "(unknown)") + ","
+         + json_float("credits", sub ? sub->credits : 0) + ","
+         + json_int("semester", e.semester) + ","
+         + json_int("year", e.year) + "}";
+}
+
+// Full student detail with current subjects and semester history
+string student_detail_json(const Student& s) {
+    string json = "{";
+    json += json_str("rollNo", s.rollNo) + ",";
+    json += json_str("name", s.name) + ",";
+    json += json_str("dept", s.dept) + ",";
+    json += json_int("semester", s.semester) + ",";
+    json += json_int("year", s.year) + ",";
+    json += json_float("cgpa", calc_cgpa(s.rollNo)) + ",";
+
+    // Current subjects (enrolled but no grade)
+    json += "\"currentSubjects\":[";
+    bool first = true;
+    for (int i = 0; i < (int)enrollments.size(); i++) {
+        const Enrollment& e = enrollments[i];
+        if (e.rollNo != s.rollNo) continue;
+        if (find_grade(s.rollNo, e.subCode, e.semester, e.year)) continue;
+        if (!first) json += ",";
+        json += enrollment_to_json(e);
+        first = false;
+    }
+    json += "],";
+
+    // Collect unique (sem, year) combos from grades
+    vector<int> sem_v, yr_v;
+    for (int i = 0; i < (int)gradeEntries.size(); i++) {
+        if (gradeEntries[i].rollNo != s.rollNo) continue;
+        int gs = gradeEntries[i].semester, gy = gradeEntries[i].year;
+        bool found = false;
+        for (int j = 0; j < (int)sem_v.size(); j++)
+            if (sem_v[j] == gs && yr_v[j] == gy) { found = true; break; }
+        if (!found) { sem_v.push_back(gs); yr_v.push_back(gy); }
+    }
+    // Bubble sort by (year, sem)
+    for (int i = 0; i < (int)sem_v.size() - 1; i++)
+        for (int j = 0; j < (int)sem_v.size() - 1 - i; j++)
+            if (yr_v[j] > yr_v[j+1] || (yr_v[j] == yr_v[j+1] && sem_v[j] > sem_v[j+1])) {
+                int ts = sem_v[j]; sem_v[j] = sem_v[j+1]; sem_v[j+1] = ts;
+                int ty = yr_v[j];  yr_v[j]  = yr_v[j+1];  yr_v[j+1]  = ty;
+            }
+
+    // Semesters array
+    json += "\"semesters\":[";
+    for (int si = 0; si < (int)sem_v.size(); si++) {
+        int sem = sem_v[si], yr = yr_v[si];
+        if (si > 0) json += ",";
+        json += "{";
+        json += json_int("semester", sem) + ",";
+        json += json_int("year", yr) + ",";
+        json += json_float("sgpa", calc_sgpa(s.rollNo, sem, yr)) + ",";
+        json += "\"grades\":[";
+        bool gfirst = true;
+        for (int i = 0; i < (int)gradeEntries.size(); i++) {
+            const GradeEntry& ge = gradeEntries[i];
+            if (ge.rollNo != s.rollNo || ge.semester != sem || ge.year != yr) continue;
+            if (!gfirst) json += ",";
+            json += grade_to_json(ge);
+            gfirst = false;
+        }
+        json += "]}";
+    }
+    json += "]}";
+    return json;
+}
+
+// ================================================================
+// SECTION 11: SIMPLE JSON PARSER (for request bodies)
+// ================================================================
+
+// Parse a flat JSON object like {"key":"value","key2":123}
+// Returns key-value pairs as strings
+HashMap<string, string> parse_json_body(const string& body) {
+    HashMap<string, string> result;
+    int i = 0, n = (int)body.size();
+    // Skip to first {
+    while (i < n && body[i] != '{') i++;
+    i++;
+    while (i < n) {
+        // Skip whitespace
+        while (i < n && (body[i] == ' ' || body[i] == '\t' || body[i] == '\n' || body[i] == '\r')) i++;
+        if (i >= n || body[i] == '}') break;
+        if (body[i] == ',') { i++; continue; }
+        // Read key
+        if (body[i] != '"') { i++; continue; }
+        i++;
+        string key;
+        while (i < n && body[i] != '"') { key += body[i]; i++; }
+        i++; // skip closing quote
+        // Skip to colon
+        while (i < n && body[i] != ':') i++;
+        i++;
+        // Skip whitespace
+        while (i < n && (body[i] == ' ' || body[i] == '\t')) i++;
+        // Read value
+        string val;
+        if (i < n && body[i] == '"') {
+            // String value
+            i++;
+            while (i < n && body[i] != '"') {
+                if (body[i] == '\\' && i + 1 < n) { val += body[i+1]; i += 2; }
+                else { val += body[i]; i++; }
+            }
+            i++; // skip closing quote
+        } else {
+            // Number/bool value
+            while (i < n && body[i] != ',' && body[i] != '}' && body[i] != ' ') {
+                val += body[i]; i++;
+            }
+        }
+        result.insert(key, val);
+    }
+    return result;
+}
+
 // ================================================================
 // SECTION 12: CSV IMPORT LOGIC (reusable for API)
 // ================================================================
