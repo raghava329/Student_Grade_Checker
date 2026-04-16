@@ -1214,71 +1214,7 @@ int main() {
         res.set_content(csv, "text/csv");
     });
 
-    // ---- REPORTS ----
-    svr.Get("/api/reports/leaderboard", [](const httplib::Request&, httplib::Response& res) {
-        vector<Student> all = studentMap.all_values();
-        sort_vec(all, [](const Student& a, const Student& b) {
-            return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
-        });
-        int show = (int)all.size() < 20 ? (int)all.size() : 20;
-        string json = "[";
-        for (int i = 0; i < show; i++) {
-            if (i > 0) json += ",";
-            json += "{" + json_int("rank", i + 1) + ","
-                  + json_str("rollNo", all[i].rollNo) + ","
-                  + json_str("name", all[i].name) + ","
-                  + json_str("dept", all[i].dept) + ","
-                  + json_float("cgpa", calc_cgpa(all[i].rollNo)) + "}";
-        }
-        json += "]";
-        res.set_content(json, "application/json");
-    });
 
-    svr.Get("/api/reports/stats", [](const httplib::Request&, httplib::Response& res) {
-        vector<Student> all = studentMap.all_values();
-        float sum = 0, best = -1, worst = 11;
-        string best_name, worst_name;
-        int graded = 0;
-        for (int i = 0; i < (int)all.size(); i++) {
-            float c = calc_cgpa(all[i].rollNo);
-            if (c <= 0.0f) continue;
-            graded++; sum += c;
-            if (c > best)  { best = c;  best_name  = all[i].name; }
-            if (c < worst) { worst = c; worst_name = all[i].name; }
-        }
-        string json = "{";
-        json += json_int("totalStudents", studentMap.size()) + ",";
-        json += json_int("totalSubjects", subjectMap.size()) + ",";
-        json += json_int("totalEnrollments", (int)enrollments.size()) + ",";
-        json += json_int("totalGrades", (int)gradeEntries.size()) + ",";
-        json += json_int("gradedStudents", graded) + ",";
-        json += json_float("avgCgpa", graded > 0 ? sum / graded : 0) + ",";
-        json += json_float("highestCgpa", best > 0 ? best : 0) + ",";
-        json += json_str("highestName", best_name) + ",";
-        json += json_float("lowestCgpa", worst < 11 ? worst : 0) + ",";
-        json += json_str("lowestName", worst_name);
-        json += "}";
-        res.set_content(json, "application/json");
-    });
-
-    svr.Get("/api/reports/department", [](const httplib::Request& req, httplib::Response& res) {
-        string dept = req.has_param("dept") ? req.get_param_value("dept") : "";
-        vector<Student> all = studentMap.all_values();
-        vector<Student> filtered;
-        for (int i = 0; i < (int)all.size(); i++)
-            if (dept.empty() || str_contains_ci(all[i].dept, dept))
-                filtered.push_back(all[i]);
-        sort_vec(filtered, [](const Student& a, const Student& b) {
-            return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
-        });
-        string json = "[";
-        for (int i = 0; i < (int)filtered.size(); i++) {
-            if (i > 0) json += ",";
-            json += student_to_json(filtered[i]);
-        }
-        json += "]";
-        res.set_content(json, "application/json");
-    });
 
     // ---- RESET ----
     svr.Post("/api/reset", [](const httplib::Request& req, httplib::Response& res) {
@@ -1291,10 +1227,10 @@ int main() {
         }
         studentMap.clear(); subjectMap.clear();
         enrollments.clear(); gradeEntries.clear();
-        { ofstream f(F_STUDENTS,    ios::trunc); }
-        { ofstream f(F_SUBJECTS,    ios::trunc); }
-        { ofstream f(F_ENROLLMENTS, ios::trunc); }
-        { ofstream f(F_GRADES,      ios::trunc); }
+        std::remove(F_STUDENTS.c_str());
+        std::remove(F_SUBJECTS.c_str());
+        std::remove(F_ENROLLMENTS.c_str());
+        std::remove(F_GRADES.c_str());
         res.set_content("{" + json_bool("success", true) + "}", "application/json");
     });
 
