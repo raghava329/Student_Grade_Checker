@@ -1215,30 +1215,6 @@ int main() {
     });
 
     // ---- REPORTS ----
-    svr.Get("/api/reports/leaderboard", [](const httplib::Request&, httplib::Response& res) {
-        vector<Student> all = studentMap.all_values();
-        vector<Student> graded;
-        for (int i = 0; i < (int)all.size(); i++) {
-            if (calc_cgpa(all[i].rollNo) >= 0.0f) {
-                graded.push_back(all[i]);
-            }
-        }
-        sort_vec(graded, [](const Student& a, const Student& b) {
-            return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
-        });
-        int show = (int)graded.size() < 20 ? (int)graded.size() : 20;
-        string json = "[";
-        for (int i = 0; i < show; i++) {
-            if (i > 0) json += ",";
-            json += "{" + json_int("rank", i + 1) + ","
-                  + json_str("rollNo", graded[i].rollNo) + ","
-                  + json_str("name", graded[i].name) + ","
-                  + json_str("dept", graded[i].dept) + ","
-                  + json_float("cgpa", calc_cgpa(graded[i].rollNo)) + "}";
-        }
-        json += "]";
-        res.set_content(json, "application/json");
-    });
 
     svr.Get("/api/reports/stats", [](const httplib::Request&, httplib::Response& res) {
         vector<Student> all = studentMap.all_values();
@@ -1297,10 +1273,10 @@ int main() {
         }
         studentMap.clear(); subjectMap.clear();
         enrollments.clear(); gradeEntries.clear();
-        { ofstream f(F_STUDENTS,    ios::trunc); }
-        { ofstream f(F_SUBJECTS,    ios::trunc); }
-        { ofstream f(F_ENROLLMENTS, ios::trunc); }
-        { ofstream f(F_GRADES,      ios::trunc); }
+        std::remove(F_STUDENTS.c_str());
+        std::remove(F_SUBJECTS.c_str());
+        std::remove(F_ENROLLMENTS.c_str());
+        std::remove(F_GRADES.c_str());
         res.set_content("{" + json_bool("success", true) + "}", "application/json");
     });
 

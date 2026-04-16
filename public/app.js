@@ -204,7 +204,6 @@ function navigateTo(page) {
     enroll: "Enroll Student",
     "assign-grade": "Assign Grade",
     reports: "Statistics",
-    leaderboard: "Leaderboard",
     "dept-report": "Department Report",
   };
   $("page-title").textContent = titles[page] || page;
@@ -219,7 +218,6 @@ function navigateTo(page) {
     enroll: loadEnrollPage,
     "assign-grade": loadAssignGradePage,
     reports: loadReportsPage,
-    leaderboard: loadLeaderboardPage,
     "dept-report": loadDeptReportPage,
   };
   if (loaders[page]) loaders[page]();
@@ -471,7 +469,11 @@ async function viewStudentDetail(roll) {
 
     // Semesters
     if (s.semesters.length > 0) {
-      html += `<div class="card-title">📊 Academic Record</div>`;
+      html += `<div class="card-title" style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+                  <span>📊 Previous Subjects & Grades</span>
+                  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('prev-subjects-admin').style.display = document.getElementById('prev-subjects-admin').style.display === 'none' ? 'block' : 'none'">Toggle Previous Subjects</button>
+               </div>
+               <div id="prev-subjects-admin" style="display:none;">`;
       for (const sem of s.semesters) {
         html += `
                 <div class="semester-card">
@@ -507,6 +509,7 @@ async function viewStudentDetail(roll) {
         }
         html += `</tbody></table></div></div>`;
       }
+      html += `</div>`;
     }
     openModal(html);
   } catch (e) {
@@ -815,18 +818,6 @@ async function loadReportsPage() {
                 <div class="stat-value">${stats.totalSubjects}</div>
                 <div class="stat-label">Subjects</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value">${
-                  stats.avgCgpa > 0 ? stats.avgCgpa.toFixed(2) : "—"
-                }</div>
-                <div class="stat-label">Average CGPA</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${
-                  stats.highestCgpa > 0 ? stats.highestCgpa.toFixed(2) : "—"
-                }</div>
-                <div class="stat-label">Top CGPA</div>
-            </div>
         </div>
         <div class="card">
             <div class="card-title">📊 Summary</div>
@@ -839,52 +830,8 @@ async function loadReportsPage() {
             <p style="margin-bottom:8px"><strong>Graded Students:</strong> ${
               stats.gradedStudents
             }</p>
-            ${
-              stats.highestCgpa > 0
-                ? `<p style="margin-bottom:8px"><strong>Highest CGPA:</strong> <span class="grade-green">${stats.highestCgpa.toFixed(
-                    2
-                  )}</span> — ${stats.highestName}</p>`
-                : ""
-            }
-            ${
-              stats.lowestCgpa > 0
-                ? `<p><strong>Lowest CGPA:</strong> <span class="grade-red">${stats.lowestCgpa.toFixed(
-                    2
-                  )}</span> — ${stats.lowestName}</p>`
-                : ""
-            }
         </div>
     `;
-}
-
-// ============ LEADERBOARD ============
-async function loadLeaderboardPage() {
-  const leaders = await api("GET", "/api/reports/leaderboard");
-  if (!leaders.length) {
-    $(
-      "content-area"
-    ).innerHTML = `<div class="empty-state"><div class="empty-state-icon">🏆</div><p>No graded students yet</p></div>`;
-    return;
-  }
-
-  let html = `<div class="table-container"><table>
-        <thead><tr><th>Rank</th><th>Roll No</th><th>Name</th><th>Department</th><th>CGPA</th></tr></thead><tbody>`;
-  for (const s of leaders) {
-    const rankClass = s.rank <= 3 ? `rank-${s.rank}` : "";
-    html += `<tr class="clickable" onclick="viewStudentDetail('${escapeAttr(
-      s.rollNo
-    )}')">
-            <td><span class="rank-badge ${rankClass}">${s.rank}</span></td>
-            <td><strong>${escapeHtml(s.rollNo)}</strong></td>
-            <td>${escapeHtml(s.name)}</td>
-            <td>${escapeHtml(s.dept)}</td>
-            <td><span class="cgpa-badge ${cgpaClass(s.cgpa)}">${s.cgpa.toFixed(
-      2
-    )}</span></td>
-        </tr>`;
-  }
-  html += `</tbody></table></div>`;
-  $("content-area").innerHTML = html;
 }
 
 // ============ DEPT REPORT ============

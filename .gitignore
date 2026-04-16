@@ -1,0 +1,8 @@
+# Compiled binaries
+*.exe
+
+# Database / CSV data structures
+data_students.csv
+data_subjects.csv
+data_enrollments.csv
+data_grades.csv
