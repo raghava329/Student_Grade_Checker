@@ -1,20 +1,8 @@
-// ================================================================
-// Student Grade Management System - IIT Jodhpur
-// C++ REST API Backend | Web UI Frontend
-// All algorithms and data structures self-implemented
-// HTTP via cpp-httplib (single header)
-// Compile (Windows): g++ -std=c++14 -o server main.cpp -lws2_32
-// Compile (Linux):   g++ -std=c++14 -pthread -o server main.cpp
-// Run: ./server   then open http://localhost:3000
-// ================================================================
-
 #include <bits/stdc++.h>
 #include "httplib.h"
 using namespace std;
 
-// ================================================================
 // SECTION 1: CUSTOM PAIR
-// ================================================================
 
 template<typename A, typename B>
 struct Pair {
