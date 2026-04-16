@@ -6,3 +6,6 @@ data_students.csv
 data_subjects.csv
 data_enrollments.csv
 data_grades.csv
+
+#explanation files
+ARCHITECTURE.md
