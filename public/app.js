@@ -203,8 +203,6 @@ function navigateTo(page) {
     "subject-add": "Add Subject",
     enroll: "Enroll Student",
     "assign-grade": "Assign Grade",
-    reports: "Statistics",
-    "dept-report": "Department Report",
   };
   $("page-title").textContent = titles[page] || page;
 
@@ -217,8 +215,6 @@ function navigateTo(page) {
     "subject-add": loadAddSubjectPage,
     enroll: loadEnrollPage,
     "assign-grade": loadAssignGradePage,
-    reports: loadReportsPage,
-    "dept-report": loadDeptReportPage,
   };
   if (loaders[page]) loaders[page]();
 }
@@ -805,87 +801,7 @@ async function submitGrade() {
   }
 }
 
-// ============ REPORTS PAGE ============
-async function loadReportsPage() {
-  const stats = await api("GET", "/api/reports/stats");
-  $("content-area").innerHTML = `
-        <div class="card-grid mb-16">
-            <div class="stat-card">
-                <div class="stat-value">${stats.totalStudents}</div>
-                <div class="stat-label">Students</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">${stats.totalSubjects}</div>
-                <div class="stat-label">Subjects</div>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-title">📊 Summary</div>
-            <p style="margin-bottom:8px"><strong>Total Enrollments:</strong> ${
-              stats.totalEnrollments
-            }</p>
-            <p style="margin-bottom:8px"><strong>Total Grades:</strong> ${
-              stats.totalGrades
-            }</p>
-            <p style="margin-bottom:8px"><strong>Graded Students:</strong> ${
-              stats.gradedStudents
-            }</p>
-        </div>
-    `;
-}
 
-// ============ DEPT REPORT ============
-function loadDeptReportPage() {
-  $("content-area").innerHTML = `
-        <div class="toolbar">
-            <input type="text" class="search-input" id="dept-search" placeholder="🔍  Enter department name..." oninput="debounceSearchDept()">
-        </div>
-        <div id="dept-table-container"><div class="empty-state"><div class="empty-state-icon">🏛️</div><p>Type a department name to view students</p></div></div>
-    `;
-}
-
-let deptTimer = null;
-function debounceSearchDept() {
-  clearTimeout(deptTimer);
-  deptTimer = setTimeout(fetchDeptStudents, 300);
-}
-
-async function fetchDeptStudents() {
-  const dept = $("dept-search").value.trim();
-  if (!dept) return;
-  const students = await api(
-    "GET",
-    `/api/reports/department?dept=${encodeURIComponent(dept)}`
-  );
-  renderDeptTable(students);
-}
-
-function renderDeptTable(students) {
-  const container = $("dept-table-container");
-  if (!students.length) {
-    container.innerHTML = `<div class="empty-state"><p>No students found in this department</p></div>`;
-    return;
-  }
-  let html = `<div class="table-container"><table>
-        <thead><tr><th>Roll No</th><th>Name</th><th>Department</th><th>Sem</th><th>Year</th><th>CGPA</th></tr></thead><tbody>`;
-  for (const s of students) {
-    html += `<tr class="clickable" onclick="viewStudentDetail('${escapeAttr(
-      s.rollNo
-    )}')">
-            <td><strong>${escapeHtml(s.rollNo)}</strong></td>
-            <td>${escapeHtml(s.name)}</td>
-            <td>${escapeHtml(s.dept)}</td>
-            <td>${s.semester}</td>
-            <td>${s.year}</td>
-            <td><span class="cgpa-badge ${cgpaClass(s.cgpa)}">${s.cgpa.toFixed(
-      2
-    )}</span></td>
-        </tr>`;
-  }
-  html += `</tbody></table></div>
-        <p class="text-center mt-16" style="color:var(--text-muted);font-size:13px">${students.length} student(s)</p>`;
-  container.innerHTML = html;
-}
 
 // ============ RESET ============
 async function resetSystem() {
