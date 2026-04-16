@@ -1217,18 +1217,24 @@ int main() {
     // ---- REPORTS ----
     svr.Get("/api/reports/leaderboard", [](const httplib::Request&, httplib::Response& res) {
         vector<Student> all = studentMap.all_values();
-        sort_vec(all, [](const Student& a, const Student& b) {
+        vector<Student> graded;
+        for (int i = 0; i < (int)all.size(); i++) {
+            if (calc_cgpa(all[i].rollNo) >= 0.0f) {
+                graded.push_back(all[i]);
+            }
+        }
+        sort_vec(graded, [](const Student& a, const Student& b) {
             return calc_cgpa(a.rollNo) > calc_cgpa(b.rollNo);
         });
-        int show = (int)all.size() < 20 ? (int)all.size() : 20;
+        int show = (int)graded.size() < 20 ? (int)graded.size() : 20;
         string json = "[";
         for (int i = 0; i < show; i++) {
             if (i > 0) json += ",";
             json += "{" + json_int("rank", i + 1) + ","
-                  + json_str("rollNo", all[i].rollNo) + ","
-                  + json_str("name", all[i].name) + ","
-                  + json_str("dept", all[i].dept) + ","
-                  + json_float("cgpa", calc_cgpa(all[i].rollNo)) + "}";
+                  + json_str("rollNo", graded[i].rollNo) + ","
+                  + json_str("name", graded[i].name) + ","
+                  + json_str("dept", graded[i].dept) + ","
+                  + json_float("cgpa", calc_cgpa(graded[i].rollNo)) + "}";
         }
         json += "]";
         res.set_content(json, "application/json");
@@ -1241,7 +1247,7 @@ int main() {
         int graded = 0;
         for (int i = 0; i < (int)all.size(); i++) {
             float c = calc_cgpa(all[i].rollNo);
-            if (c <= 0.0f) continue;
+            if (c < 0.0f) continue;
             graded++; sum += c;
             if (c > best)  { best = c;  best_name  = all[i].name; }
             if (c < worst) { worst = c; worst_name = all[i].name; }
@@ -1253,9 +1259,9 @@ int main() {
         json += json_int("totalGrades", (int)gradeEntries.size()) + ",";
         json += json_int("gradedStudents", graded) + ",";
         json += json_float("avgCgpa", graded > 0 ? sum / graded : 0) + ",";
-        json += json_float("highestCgpa", best > 0 ? best : 0) + ",";
+        json += json_float("highestCgpa", best >= 0 ? best : 0) + ",";
         json += json_str("highestName", best_name) + ",";
-        json += json_float("lowestCgpa", worst < 11 ? worst : 0) + ",";
+        json += json_float("lowestCgpa", worst <= 10.0f ? worst : 0) + ",";
         json += json_str("lowestName", worst_name);
         json += "}";
         res.set_content(json, "application/json");
