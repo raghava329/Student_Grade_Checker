@@ -1,21 +1,8 @@
-// ================================================================
-// Student Grade Management System - IIT Jodhpur
-// C++ REST API Backend | Web UI Frontend
-// All algorithms and data structures self-implemented
-// HTTP via cpp-httplib (single header)
-// Compile (Windows): g++ -std=c++14 -o server main.cpp -lws2_32
-// Compile (Linux):   g++ -std=c++14 -pthread -o server main.cpp
-// Run: ./server   then open http://localhost:3000
-// ================================================================
-
 #include <bits/stdc++.h>
 #include "httplib.h"
 using namespace std;
 
-// ================================================================
 // SECTION 1: CUSTOM PAIR
-// ================================================================
-
 template<typename A, typename B>
 struct Pair {
     A first;
@@ -24,9 +11,8 @@ struct Pair {
     Pair(const A& a, const B& b) : first(a), second(b) {}
 };
 
-// ================================================================
+
 // SECTION 2: STRING UTILITIES
-// ================================================================
 
 string str_trim(const string& s) {
     size_t start = s.find_first_not_of(" \t\r\n");
@@ -88,9 +74,7 @@ vector<string> split_csv(const string& line) {
     return parts;
 }
 
-// ================================================================
 // SECTION 3: JSON HELPERS (manual — no JSON library)
-// ================================================================
 
 string json_escape(const string& s) {
     string r;
@@ -122,9 +106,7 @@ string json_bool(const string& key, bool val) {
     return "\"" + key + "\":" + (val ? "true" : "false");
 }
 
-// ================================================================
 // SECTION 4: HASH MAP (manual chaining with djb2)
-// ================================================================
 
 template<typename K, typename V>
 struct HashMap {
@@ -196,9 +178,9 @@ struct HashMap {
     int size() const { return count; }
 };
 
-// ================================================================
+
 // SECTION 5: SORTING (merge sort) & SEARCHING (binary search)
-// ================================================================
+
 
 template<typename T, typename Cmp>
 void merge_sort(vector<T>& arr, int l, int r, Cmp cmp) {
@@ -232,9 +214,8 @@ int bin_search_str(const vector<string>& arr, const string& key) {
     return -1;
 }
 
-// ================================================================
+
 // SECTION 6: DATA MODELS
-// ================================================================
 
 struct Student {
     string rollNo, name, dept;
@@ -256,18 +237,18 @@ struct GradeEntry {
     int    semester, year;
 };
 
-// ================================================================
+
 // SECTION 7: GLOBAL STATE
-// ================================================================
+
 
 HashMap<string, Student> studentMap;
 HashMap<string, Subject> subjectMap;
 vector<Enrollment>       enrollments;
 vector<GradeEntry>       gradeEntries;
 
-// ================================================================
+
 // SECTION 8: GRADE LOGIC
-// ================================================================
+
 
 bool is_valid_grade(const string& g) {
     return g == "A" || g == "A-" || g == "B" || g == "B-" ||
@@ -345,9 +326,9 @@ string make_password(const string& name, const string& roll) {
     return pfx + sfx;
 }
 
-// ================================================================
+
 // SECTION 9: PERSISTENCE (CSV file I/O)
-// ================================================================
+
 
 const string F_STUDENTS    = "data_students.csv";
 const string F_SUBJECTS    = "data_subjects.csv";
@@ -470,9 +451,9 @@ void load_all() {
     }
 }
 
-// ================================================================
+
 // SECTION 10: JSON SERIALIZERS
-// ================================================================
+
 
 string student_to_json(const Student& s) {
     float cgpa = calc_cgpa(s.rollNo);
@@ -578,9 +559,9 @@ string student_detail_json(const Student& s) {
     return json;
 }
 
-// ================================================================
+
 // SECTION 11: SIMPLE JSON PARSER (for request bodies)
-// ================================================================
+
 
 // Parse a flat JSON object like {"key":"value","key2":123}
 // Returns key-value pairs as strings
@@ -627,9 +608,9 @@ HashMap<string, string> parse_json_body(const string& body) {
     return result;
 }
 
-// ================================================================
+
 // SECTION 12: CSV IMPORT LOGIC (reusable for API)
-// ================================================================
+
 
 struct ImportResult {
     int imported, skipped;
@@ -780,9 +761,9 @@ ImportResult do_import_grades(const string& csv_content) {
     return res;
 }
 
-// ================================================================
+
 // SECTION 13: HTTP SERVER & API ROUTES
-// ================================================================
+
 
 int main() {
     load_all();
