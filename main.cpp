@@ -3,10 +3,6 @@
 using namespace std;
 
 // SECTION 1: CUSTOM PAIR
-<<<<<<< HEAD
-=======
-
->>>>>>> 8496fd132a871bcd54dc8c3b8c3ae59b66e85fbe
 template<typename A, typename B>
 struct Pair {
     A first;
